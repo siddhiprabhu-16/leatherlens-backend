@@ -1,7 +1,8 @@
 flask
-gunicorn
+flask-cors
 numpy
 pillow
 joblib
 scikit-learn
+tensorflow
 xgboost
