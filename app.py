@@ -161,7 +161,7 @@ def predict():
 
         features = extract_features(img)
         features = features.reshape(1, -1)
-
+print("Feature length BEFORE scaler:", features.shape)
         # Apply SAME scaler + PCA as training
         features = scaler.transform(features)
         features = pca.transform(features)
@@ -183,3 +183,4 @@ def predict():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
