@@ -110,14 +110,16 @@ def extract_cnn(img):
 def extract_features(img):
     img_proc = preprocess_texture(img)
     
-    lbp = extract_lbp(img_proc)
-    glcm = extract_glcm(img_proc)
-    gabor = extract_gabor(img_proc)
-    cnn = extract_cnn(img_proc)
+    f_lbp = extract_lbp(img_proc)
+    f_glcm = extract_glcm(img_proc)
+    f_gabor = extract_gabor(img_proc)
+    f_cnn = extract_cnn(img_proc)
     
-    print(f"LBP: {len(lbp)}, GLCM: {len(glcm)}, Gabor: {len(gabor)}, CNN: {len(cnn)}")
+    # This will show up in your Flask logs/terminal
+    print(f"DEBUG: LBP={len(f_lbp)}, GLCM={len(f_glcm)}, Gabor={len(f_gabor)}, CNN={len(f_cnn)}")
+    print(f"DEBUG: Total={len(f_lbp) + len(f_glcm) + len(f_gabor) + len(f_cnn)}")
     
-    return np.concatenate([lbp, glcm, gabor, cnn])
+    return np.concatenate([f_lbp, f_glcm, f_gabor, f_cnn])
 
 # FINAL SAFETY CHECK
     if len(full_features) != 1412:
@@ -174,6 +176,7 @@ print("Feature length BEFORE scaler:", features.shape)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
