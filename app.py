@@ -18,12 +18,15 @@ def predict():
         return jsonify({"error": "No image uploaded"}), 400
 
     file = request.files["image"]
-    img = Image.open(io.BytesIO(file.read()))
-    img = img.resize((224, 224))
-    img = np.array(img).flatten().reshape(1, -1)
+   img = Image.open(io.BytesIO(file.read()))
+img = img.resize((224, 224))
+img = np.array(img)
 
-    img = scaler.transform(img)
-    img = pca.transform(img)
+features = extract_features(img)
+features = features.reshape(1, -1)
+
+features = scaler.transform(features)
+features = pca.transform(features)
 
     prediction = model.predict_proba(img)[0]
     class_index = np.argmax(prediction)
@@ -34,4 +37,5 @@ def predict():
     })
 
 if __name__ == "__main__":
+
     app.run(host="0.0.0.0", port=8080)
