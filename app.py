@@ -64,29 +64,14 @@ def extract_lbp(img):
 
 def extract_glcm(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    glcm = graycomatrix(
-        gray,
-        [1, 2, 3],                # EXACT match
-        [0, np.pi/4, np.pi/2],    # EXACT match
-        256,
-        True,
-        True
-    )
-
-    props = [
-        "contrast",
-        "dissimilarity",
-        "homogeneity",
-        "energy",
-        "correlation",
-        "ASM"
-    ]
-
+    # Ensure distances and angles match the training exactly
+    glcm = graycomatrix(gray, [1, 2, 3], [0, np.pi/4, np.pi/2], 256, True, True)
+    props = ["contrast", "dissimilarity", "homogeneity", "energy", "correlation", "ASM"]
+    
     feats = []
     for p in props:
+        # .flatten() ensures we get all 9 values (3x3) per property
         feats.extend(graycoprops(glcm, p).flatten())
-
     return np.array(feats)
 
 
@@ -117,25 +102,31 @@ def extract_cnn(img):
     img = cv2.resize(img, (224, 224))
     img = preprocess_input(img.astype(np.float32))
     img = np.expand_dims(img, 0)
-
-    features = cnn_model.predict(img, verbose=0)
-    return features.flatten()
+    features = cnn_model.predict(img, verbose=0).flatten()
+    # print(f"CNN Feature length: {len(features)}") # Should be 1280
+    return features
 
 
 def extract_features(img):
     img_proc = preprocess_texture(img)
+    
+    lbp = extract_lbp(img_proc)
+    glcm = extract_glcm(img_proc)
+    gabor = extract_gabor(img_proc)
+    cnn = extract_cnn(img_proc)
+    
+    print(f"LBP: {len(lbp)}, GLCM: {len(glcm)}, Gabor: {len(gabor)}, CNN: {len(cnn)}")
+    
+    return np.concatenate([lbp, glcm, gabor, cnn])
 
-    features = np.concatenate([
-        extract_lbp(img_proc),
-        extract_glcm(img_proc),
-        extract_gabor(img_proc),
-        extract_cnn(img_proc)
-    ])
-
-    # DEBUG CHECK
-    print("Feature length:", len(features))  # Should be 1412
-
-    return features
+# FINAL SAFETY CHECK
+    if len(full_features) != 1412:
+        print(f"⚠️ Warning: Feature mismatch! Got {len(full_features)}, need 1412")
+        # Pad with zeros to prevent StandardScaler crash
+        if len(full_features) < 1412:
+            full_features = np.pad(full_features, (0, 1412 - len(full_features)))
+            
+    return full_features[:1412]
 
 
 # ------------------- ROOT ROUTE -------------------
@@ -183,5 +174,6 @@ print("Feature length BEFORE scaler:", features.shape)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
 
