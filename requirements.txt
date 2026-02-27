@@ -2,7 +2,9 @@ flask
 flask-cors
 numpy
 pillow
-joblib
+opencv-python-headless
+scikit-image
 scikit-learn
+joblib
 tensorflow
 xgboost
