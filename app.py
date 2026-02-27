@@ -155,9 +155,9 @@ def predict():
     file = request.files["image"]
 
     try:
-        img = Image.open(io.BytesIO(file.read())).convert("RGB")
-        img = img.resize((224, 224))
-        img = np.array(img)
+       file_bytes = np.frombuffer(file.read(), np.uint8)
+img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+img = cv2.resize(img, (224, 224))
 
         features = extract_features(img)
         features = features.reshape(1, -1)
@@ -183,4 +183,5 @@ print("Feature length BEFORE scaler:", features.shape)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
