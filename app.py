@@ -4,6 +4,7 @@ import joblib
 import numpy as np
 from PIL import Image
 import io
+import os
 
 # Texture / ML imports
 import cv2
@@ -24,8 +25,12 @@ scaler = joblib.load("scaler.pkl")
 pca = joblib.load("pca.pkl")
 classes = joblib.load("classes.pkl")
 
-# Load CNN once (very important)
-cnn_model = EfficientNetB0(weights="imagenet", include_top=False, pooling="avg")
+# Load CNN once
+cnn_model = EfficientNetB0(
+    weights="imagenet",
+    include_top=False,
+    pooling="avg"
+)
 
 # ------------------- FEATURE FUNCTIONS -------------------
 
@@ -38,16 +43,24 @@ def extract_lbp(img):
     radius = 1
     n_points = 8 * radius
     lbp = local_binary_pattern(img, n_points, radius, method="uniform")
-    hist, _ = np.histogram(lbp.ravel(),
-                           bins=np.arange(0, n_points + 3),
-                           range=(0, n_points + 2))
+    hist, _ = np.histogram(
+        lbp.ravel(),
+        bins=np.arange(0, n_points + 3),
+        range=(0, n_points + 2)
+    )
     hist = hist.astype("float")
     hist /= (hist.sum() + 1e-6)
     return hist
 
 def extract_glcm(img):
-    glcm = graycomatrix(img, distances=[1], angles=[0],
-                        levels=256, symmetric=True, normed=True)
+    glcm = graycomatrix(
+        img,
+        distances=[1],
+        angles=[0],
+        levels=256,
+        symmetric=True,
+        normed=True
+    )
     contrast = graycoprops(glcm, 'contrast')[0, 0]
     correlation = graycoprops(glcm, 'correlation')[0, 0]
     energy = graycoprops(glcm, 'energy')[0, 0]
@@ -57,8 +70,15 @@ def extract_glcm(img):
 def extract_gabor(img):
     features = []
     for theta in np.arange(0, np.pi, np.pi / 4):
-        kernel = cv2.getGaborKernel((9, 9), 4.0, theta,
-                                     10.0, 0.5, 0, ktype=cv2.CV_32F)
+        kernel = cv2.getGaborKernel(
+            (9, 9),
+            4.0,
+            theta,
+            10.0,
+            0.5,
+            0,
+            ktype=cv2.CV_32F
+        )
         fimg = cv2.filter2D(img, cv2.CV_8UC3, kernel)
         features.append(fimg.mean())
         features.append(fimg.var())
@@ -82,6 +102,14 @@ def extract_features(img):
         extract_cnn(img_proc)
     ])
 
+# ------------------- ROOT ROUTE -------------------
+
+@app.route("/")
+def home():
+    return jsonify({
+        "status": "LeatherLens Backend Running 🚀"
+    })
+
 # ------------------- PREDICT ENDPOINT -------------------
 
 @app.route("/api/predict", methods=["POST"])
@@ -91,31 +119,34 @@ def predict():
 
     file = request.files["image"]
 
-    # Load image
-    img = Image.open(io.BytesIO(file.read()))
-    img = img.resize((224, 224))
-    img = np.array(img)
+    try:
+        # Load image safely
+        img = Image.open(io.BytesIO(file.read())).convert("RGB")
+        img = img.resize((224, 224))
+        img = np.array(img)
 
-    # Extract SAME training features
-    features = extract_features(img)
-    features = features.reshape(1, -1)
+        # Extract features
+        features = extract_features(img)
+        features = features.reshape(1, -1)
 
-    # Apply scaler and PCA
-    features = scaler.transform(features)
-    features = pca.transform(features)
+        # Apply scaler and PCA
+        features = scaler.transform(features)
+        features = pca.transform(features)
 
-    # Predict
-    prediction = model.predict_proba(features)[0]
-    class_index = np.argmax(prediction)
+        # Predict
+        prediction = model.predict_proba(features)[0]
+        class_index = np.argmax(prediction)
 
-    return jsonify({
-        "prediction": classes[class_index],
-        "confidence": float(prediction[class_index])
-    })
+        return jsonify({
+            "prediction": classes[class_index],
+            "confidence": float(prediction[class_index])
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ------------------- RUN -------------------
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
