@@ -35,72 +35,60 @@ cnn_model = EfficientNetB0(
 # ------------------- FEATURE FUNCTIONS -------------------
 
 def preprocess_texture(img):
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = cv2.GaussianBlur(img, (3, 3), 0)
-    return img
+    return cv2.bilateralFilter(img, 9, 75, 75)
+
 
 def extract_lbp(img):
-    radius = 1
-    n_points = 8 * radius
-    lbp = local_binary_pattern(img, n_points, radius, method="uniform")
-    hist, _ = np.histogram(
-        lbp.ravel(),
-        bins=np.arange(0, n_points + 3),
-        range=(0, n_points + 2)
-    )
-    hist = hist.astype("float")
-    hist /= (hist.sum() + 1e-6)
-    return hist
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    feats = []
+    for r in [1, 2, 3]:
+        n = 8 * r
+        lbp = local_binary_pattern(gray, n, r, method="uniform")
+        hist, _ = np.histogram(
+            lbp.ravel(),
+            bins=n + 2,
+            range=(0, n + 2)
+        )
+        hist = hist / (hist.sum() + 1e-6)
+        feats.extend(hist)
+    return np.array(feats)
+
 
 def extract_glcm(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     glcm = graycomatrix(
-        img,
-        distances=[1],
-        angles=[0],
+        gray,
+        distances=[1, 2, 3],
+        angles=[0, np.pi/4, np.pi/2],
         levels=256,
         symmetric=True,
         normed=True
     )
-    contrast = graycoprops(glcm, 'contrast')[0, 0]
-    correlation = graycoprops(glcm, 'correlation')[0, 0]
-    energy = graycoprops(glcm, 'energy')[0, 0]
-    homogeneity = graycoprops(glcm, 'homogeneity')[0, 0]
-    return np.array([contrast, correlation, energy, homogeneity])
+    props = ["contrast", "dissimilarity", "homogeneity",
+             "energy", "correlation", "ASM"]
+    feats = []
+    for p in props:
+        feats.extend(graycoprops(glcm, p).flatten())
+    return np.array(feats)
+
 
 def extract_gabor(img):
-    features = []
-    for theta in np.arange(0, np.pi, np.pi / 4):
-        kernel = cv2.getGaborKernel(
-            (9, 9),
-            4.0,
-            theta,
-            10.0,
-            0.5,
-            0,
-            ktype=cv2.CV_32F
-        )
-        fimg = cv2.filter2D(img, cv2.CV_8UC3, kernel)
-        features.append(fimg.mean())
-        features.append(fimg.var())
-    return np.array(features)
-
-def extract_cnn(img):
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    img_rgb = cv2.resize(img_rgb, (224, 224))
-    img_rgb = img_to_array(img_rgb)
-    img_rgb = np.expand_dims(img_rgb, axis=0)
-    img_rgb = preprocess_input(img_rgb)
-    features = cnn_model.predict(img_rgb, verbose=0)
-    return features.flatten()
-
-def extract_features(img):
-    img_proc = preprocess_texture(img)
-    return np.concatenate([
-        extract_lbp(img_proc),
-        extract_glcm(img_proc),
-        extract_gabor(img_proc),
-        extract_cnn(img_proc)
-    ])
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    feats = []
+    for theta in np.arange(0, np.pi, np.pi/6):
+        for freq in [0.1, 0.2]:
+            kernel = cv2.getGaborKernel(
+                (21, 21),
+                5,
+                theta,
+                10 * freq,
+                0.5,
+                0
+            )
+            f = cv2.filter2D(gray, cv2.CV_32F, kernel)
+            feats.append(f.mean())
+            feats.append(f.var())
+    return np.array(feats)
 
 # ------------------- ROOT ROUTE -------------------
 
@@ -150,3 +138,4 @@ def predict():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
